@@ -42,8 +42,21 @@ body {
     min-height: 100vh;
     color: var(--text-primary);
     padding-bottom: 2rem;
-    transition: background 0.3s ease, color 0.3s ease;
+    transition: background 0.5s ease, color 0.3s ease;
     overflow-x: hidden;
+}
+
+/* Member Routine Mode - Dynamic theme applied via JavaScript */
+body.member-routine-mode {
+    /* Background will be set dynamically via inline styles */
+    transition: background 0.5s ease, background-image 0.5s ease;
+    /* Inline style will override this */
+    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+}
+
+/* Ensure inline background style takes precedence */
+body.member-routine-mode[style*="background"] {
+    background: var(--member-background) !important;
 }
 
 /* Welcome Screen */
@@ -2385,5 +2398,218 @@ body.minimalist-view .toast-container {
 
     .pomodoro-preset-btn {
         padding: 1rem;
+    }
+}
+
+/* Routine Styles */
+.routine-modal {
+    max-width: 700px;
+}
+
+.routine-body {
+    padding: 1.5rem;
+}
+
+.routine-actions {
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.members-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1rem;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.member-card {
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    position: relative;
+    box-shadow: var(--shadow);
+}
+
+.member-card:hover {
+    transform: translateY(-5px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.member-card.active {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1));
+}
+
+.member-card-icon {
+    width: 4rem;
+    height: 4rem;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem;
+    color: white;
+    font-size: 2rem;
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+}
+
+.member-card-name {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.member-card-routines {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.member-card-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.member-card-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.member-card-btn:hover {
+    background: var(--bg-color);
+    color: var(--primary-color);
+}
+
+.member-card-btn.delete:hover {
+    color: var(--priority-high);
+}
+
+/* Routines Input */
+.routines-input-container {
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background: var(--bg-color);
+    min-height: 200px;
+}
+
+.routines-list {
+    margin-bottom: 1rem;
+    min-height: 100px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.routine-item {
+    background: var(--card-bg);
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.routine-item:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow);
+}
+
+.routine-item-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    flex: 1;
+}
+
+.routine-item-remove {
+    background: transparent;
+    border: none;
+    color: var(--priority-high);
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+}
+
+.routine-item-remove:hover {
+    background: rgba(239, 68, 68, 0.1);
+}
+
+.add-routine-input {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.add-routine-input input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid var(--border-color);
+    border-radius: 0.5rem;
+    font-size: 1rem;
+    background: var(--card-bg);
+    color: var(--text-primary);
+}
+
+.add-routine-input input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Current Member Indicator */
+.current-member-indicator {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 1rem;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.current-member-indicator i {
+    font-size: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .members-list {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+    
+    .member-card {
+        padding: 1rem;
+    }
+    
+    .member-card-icon {
+        width: 3rem;
+        height: 3rem;
+        font-size: 1.5rem;
+    }
+    
+    .add-routine-input {
+        flex-direction: column;
     }
 }

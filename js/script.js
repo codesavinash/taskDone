@@ -6,6 +6,7 @@ class TaskManager {
         this.draggedTask = null;
         this.filteredTasks = null;
         this.currentFilter = { priority: 'all', sort: 'date' };
+        this.currentMemberId = null; // Track which member's routines are being viewed
         this.init();
     }
 
@@ -23,6 +24,82 @@ class TaskManager {
 
     // Load tasks from local storage
     loadTasks() {
+        // Skip member mode if we're explicitly switching to regular
+        if (this._switchingToRegular) {
+            // Load regular tasks directly
+            const savedTasks = localStorage.getItem('tasks');
+            if (savedTasks) {
+                this.tasks = JSON.parse(savedTasks);
+                // Resume timers for tasks that were in progress
+                this.tasks.forEach(task => {
+                    if (task.status === 'inprogress') {
+                        if (task.startTime) {
+                            // Verify the start time is still valid (not too old)
+                            const startTime = new Date(task.startTime);
+                            const now = new Date();
+                            const diffMinutes = (now - startTime) / (1000 * 60);
+                            
+                            // If timer is less than 24 hours old, resume it
+                            if (diffMinutes < 24 * 60) {
+                                // Timer is still valid, it will continue on next update
+                            } else {
+                                // Timer is too old, reset status
+                                task.status = 'todo';
+                                task.startTime = null;
+                            }
+                        }
+                    }
+                });
+            } else {
+                this.tasks = [];
+            }
+            // Ensure indicator is hidden
+            routineManager?.hideCurrentMemberIndicator();
+            this.currentMemberId = null;
+            return;
+        }
+        
+        // Check URL parameter first (for new tab scenario)
+        const urlParams = new URLSearchParams(window.location.search);
+        const memberIdFromUrl = urlParams.get('member');
+        
+        // Check if we're in routine mode (from localStorage or URL)
+        let currentMemberId = memberIdFromUrl || localStorage.getItem('currentMemberId');
+        
+        // Don't load member tasks if currentMemberId is explicitly null or we're switching
+        if (currentMemberId && currentMemberId !== 'null' && this.currentMemberId !== null && !this._switchingToRegular) {
+            this.currentMemberId = currentMemberId;
+            // Save to localStorage if from URL
+            if (memberIdFromUrl) {
+                localStorage.setItem('currentMemberId', memberIdFromUrl);
+            }
+            
+            // Load tasks from routine manager
+            const routines = localStorage.getItem('routines');
+            if (routines) {
+                const routinesData = JSON.parse(routines);
+                const member = routinesData.members.find(m => m.id === currentMemberId);
+                if (member) {
+                    this.tasks = member.tasks || [];
+                    // Show member indicator and apply theme only if still in member mode
+                    const savedMemberId = currentMemberId; // Capture value for setTimeout
+                    setTimeout(() => {
+                        // Double-check we're still in member mode (might have switched during timeout)
+                        if (routineManager && this.currentMemberId && this.currentMemberId === savedMemberId && !this._switchingToRegular) {
+                            routineManager.showCurrentMemberIndicator(member.name);
+                            routineManager.applyMemberTheme(savedMemberId);
+                        }
+                    }, 100);
+                    return;
+                }
+            }
+        } else {
+            // Not in member mode - ensure indicator is hidden
+            routineManager?.hideCurrentMemberIndicator();
+            this.currentMemberId = null;
+        }
+        
+        // Load regular tasks
         const savedTasks = localStorage.getItem('tasks');
         if (savedTasks) {
             this.tasks = JSON.parse(savedTasks);
@@ -77,8 +154,70 @@ class TaskManager {
     // Save tasks to local storage
     saveTasks() {
         if (document.getElementById('autoSaveToggle')?.checked !== false) {
+            // If in routine mode, save to member's tasks
+            if (this.currentMemberId) {
+                const routines = localStorage.getItem('routines');
+                if (routines) {
+                    const routinesData = JSON.parse(routines);
+                    const member = routinesData.members.find(m => m.id === this.currentMemberId);
+                    if (member) {
+                        member.tasks = this.tasks;
+                        localStorage.setItem('routines', JSON.stringify(routinesData));
+                        return;
+                    }
+                }
+            }
+            // Save regular tasks
             localStorage.setItem('tasks', JSON.stringify(this.tasks));
         }
+    }
+    
+    // Switch to member's routine view
+    switchToMember(memberId) {
+        this.currentMemberId = memberId;
+        localStorage.setItem('currentMemberId', memberId);
+        
+        // Apply member's color theme
+        routineManager?.applyMemberTheme(memberId);
+        
+        this.loadTasks();
+        this.renderTasks();
+        this.updateTaskCounts();
+        this.updateStatistics();
+    }
+    
+    // Switch back to regular tasks
+    switchToRegular() {
+        this.currentMemberId = null;
+        localStorage.removeItem('currentMemberId');
+        
+        // Clear URL parameter if present
+        if (window.location.search.includes('member=')) {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('member');
+            window.history.replaceState({}, '', url);
+        }
+        
+        // Hide member indicator FIRST before removing theme
+        routineManager?.hideCurrentMemberIndicator();
+        
+        // Remove member theme
+        routineManager?.removeMemberTheme();
+        
+        // Set a flag to prevent loadTasks from showing member view
+        this._switchingToRegular = true;
+        
+        this.loadTasks();
+        this.renderTasks();
+        this.updateTaskCounts();
+        this.updateStatistics();
+        
+        // Clear the flag after a short delay
+        setTimeout(() => {
+            this._switchingToRegular = false;
+        }, 200);
+        
+        console.log('Switched to regular tasks - currentMemberId:', this.currentMemberId);
     }
 
     // Save settings to local storage
@@ -1569,9 +1708,545 @@ class PomodoroTimer {
     }
 }
 
+// Routine Manager Class
+class RoutineManager {
+    constructor() {
+        this.members = [];
+        this.currentEditingMemberId = null;
+        this.currentRoutines = [];
+        
+        // DOM elements
+        this.routineModal = document.getElementById('routineModal');
+        this.addMemberModal = document.getElementById('addMemberModal');
+        this.membersList = document.getElementById('membersList');
+        this.memberForm = document.getElementById('memberForm');
+        this.routinesList = document.getElementById('routinesList');
+        this.routineInput = document.getElementById('routineInput');
+        
+        this.init();
+    }
+    
+    init() {
+        this.loadMembers();
+        this.setupEventListeners();
+        this.renderMembers();
+    }
+    
+    setupEventListeners() {
+        // Routine modal
+        document.getElementById('routineBtn').addEventListener('click', () => {
+            this.openRoutineModal();
+        });
+        
+        document.getElementById('closeRoutineBtn').addEventListener('click', () => {
+            this.closeRoutineModal();
+        });
+        
+        // Add member button
+        document.getElementById('addMemberBtn').addEventListener('click', () => {
+            this.openAddMemberModal();
+        });
+        
+        // Add member modal
+        document.getElementById('closeAddMemberBtn').addEventListener('click', () => {
+            this.closeAddMemberModal();
+        });
+        
+        document.getElementById('cancelMemberBtn').addEventListener('click', () => {
+            this.closeAddMemberModal();
+        });
+        
+        document.getElementById('saveMemberBtn').addEventListener('click', () => {
+            this.saveMember();
+        });
+        
+        // Add routine button
+        document.getElementById('addRoutineBtn').addEventListener('click', () => {
+            this.addRoutine();
+        });
+        
+        // Enter key on routine input
+        this.routineInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.addRoutine();
+            }
+        });
+        
+        // Close modals on outside click
+        this.routineModal.addEventListener('click', (e) => {
+            if (e.target === this.routineModal) {
+                this.closeRoutineModal();
+            }
+        });
+        
+        this.addMemberModal.addEventListener('click', (e) => {
+            if (e.target === this.addMemberModal) {
+                this.closeAddMemberModal();
+            }
+        });
+    }
+    
+    loadMembers() {
+        const saved = localStorage.getItem('routines');
+        if (saved) {
+            const data = JSON.parse(saved);
+            this.members = data.members || [];
+            
+            // Ensure each member has a color theme - regenerate all with green theme
+            let needsSave = false;
+            this.members.forEach((member, index) => {
+                // Regenerate all colors to ensure green theme (or just missing ones)
+                // If you want to force regenerate all, change the condition to always regenerate
+                if (!member.colorTheme) {
+                    member.colorTheme = this.generateMemberColor(member.id);
+                    needsSave = true;
+                    console.log(`Generated green theme for ${member.name}:`, member.colorTheme);
+                }
+            });
+            
+            if (needsSave) {
+                this.saveMembers();
+                console.log('Saved members with green color themes');
+            }
+        }
+    }
+    
+    saveMembers() {
+        localStorage.setItem('routines', JSON.stringify({ members: this.members }));
+    }
+    
+    // Generate a unique color theme for each member based on their ID
+    // All members use green-themed gradients for consistency
+    generateMemberColor(memberId) {
+        // Use hash of member ID + name to generate consistent colors
+        const member = this.members.find(m => m.id === memberId);
+        const hashString = memberId + (member ? member.name : '');
+        
+        let hash = 0;
+        for (let i = 0; i < hashString.length; i++) {
+            hash = ((hash << 5) - hash) + hashString.charCodeAt(i);
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        
+        // Green-themed color palettes for member routines
+        const colorPalettes = [
+            { start: '#11998e', end: '#38ef7d' }, // Teal to Green
+            { start: '#43e97b', end: '#38f9d7' }, // Green-Cyan
+            { start: '#84fab0', end: '#8fd3f4' }, // Light Green-Blue
+            { start: '#56ab2f', end: '#a8e063' }, // Dark Green to Light Green
+            { start: '#00b894', end: '#00cec9' }, // Teal to Cyan
+            { start: '#134e5e', end: '#71b280' }, // Dark Teal to Green
+            { start: '#a8edea', end: '#fed6e3' }, // Light Cyan-Pink (softer)
+            { start: '#c3ec52', end: '#0ba360' }, // Lime to Green
+            { start: '#0fd850', end: '#f9f047' }, // Green to Yellow
+            { start: '#2ecc71', end: '#27ae60' }, // Emerald Green
+            { start: '#55efc4', end: '#81ecec' }, // Mint to Cyan
+            { start: '#1e3c72', end: '#2a5298' }, // Dark Blue (subtle accent)
+            { start: '#00b894', end: '#00cec9' }, // Teal to Cyan
+            { start: '#16a085', end: '#1abc9c' }, // Sea Green
+            { start: '#52c234', end: '#61b15a' }, // Fresh Green
+            { start: '#06beb6', end: '#48b1bf' }, // Turquoise
+        ];
+        
+        // Use member index for additional variety
+        const memberIndex = this.members.findIndex(m => m.id === memberId);
+        const index = (Math.abs(hash) + (memberIndex * 7)) % colorPalettes.length;
+        return colorPalettes[index];
+    }
+    
+    // Apply member's color theme
+    applyMemberTheme(memberId) {
+        // Ensure members are loaded
+        if (this.members.length === 0) {
+            this.loadMembers();
+        }
+        
+        const member = this.members.find(m => m.id === memberId);
+        if (!member) {
+            console.error('Member not found:', memberId);
+            return;
+        }
+        
+        // Ensure member has a color theme
+        if (!member.colorTheme) {
+            member.colorTheme = this.generateMemberColor(memberId);
+            this.saveMembers();
+            console.log('Generated color theme for member:', member.name, member.colorTheme);
+        }
+        
+        const theme = member.colorTheme;
+        console.log('Applying theme for member:', member.name, theme);
+        
+        // Set the theme immediately
+        const gradient = `linear-gradient(135deg, ${theme.start} 0%, ${theme.end} 100%)`;
+        
+        // Remove existing member theme class first to reset
+        document.body.classList.remove('member-routine-mode');
+        
+        // Use requestAnimationFrame to ensure DOM update
+        requestAnimationFrame(() => {
+            // Add class
+            document.body.classList.add('member-routine-mode');
+            
+            // Set CSS custom properties
+            document.body.style.setProperty('--member-gradient-start', theme.start);
+            document.body.style.setProperty('--member-gradient-end', theme.end);
+            document.body.style.setProperty('--member-background', gradient);
+            
+            // Force background update - directly set style properties
+            document.body.style.background = gradient;
+            document.body.style.backgroundImage = gradient;
+            document.body.style.backgroundColor = 'transparent';
+            
+            // Also update via setAttribute to ensure it sticks
+            document.body.setAttribute('data-member-theme', memberId);
+            document.body.setAttribute('data-theme-colors', `${theme.start}-${theme.end}`);
+            
+            console.log('Theme applied for', member.name, ':', theme);
+            console.log('Background style:', document.body.style.background);
+        });
+    }
+    
+    // Remove member theme and restore default
+    removeMemberTheme() {
+        document.body.classList.remove('member-routine-mode');
+        document.body.style.background = '';
+        document.body.style.backgroundImage = '';
+        document.body.style.removeProperty('--member-gradient-start');
+        document.body.style.removeProperty('--member-gradient-end');
+        document.body.style.removeProperty('--member-background');
+        document.body.removeAttribute('data-member-theme');
+    }
+    
+    renderMembers() {
+        if (this.members.length === 0) {
+            this.membersList.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-users"></i>
+                    <p>No members yet. Click "Add Member" to get started!</p>
+                </div>
+            `;
+            return;
+        }
+        
+        const currentMemberId = localStorage.getItem('currentMemberId');
+        const html = this.members.map(member => {
+            const taskCounts = {
+                todo: (member.tasks || []).filter(t => t.status === 'todo').length,
+                inprogress: (member.tasks || []).filter(t => t.status === 'inprogress').length,
+                done: (member.tasks || []).filter(t => t.status === 'done').length
+            };
+            const totalTasks = (member.tasks || []).length;
+            const isActive = currentMemberId === member.id;
+            
+            return `
+                <div class="member-card ${isActive ? 'active' : ''}" data-member-id="${member.id}" onclick="routineManager.openMemberDashboard('${member.id}')">
+                    <div class="member-card-icon">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="member-card-name">${this.escapeHtml(member.name)}</div>
+                    <div class="member-card-routines">${totalTasks} ${totalTasks === 1 ? 'routine' : 'routines'}</div>
+                    <div class="member-card-actions" onclick="event.stopPropagation();">
+                        <button class="member-card-btn" onclick="routineManager.editMember('${member.id}')" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="member-card-btn delete" onclick="routineManager.deleteMember('${member.id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        this.membersList.innerHTML = html;
+    }
+    
+    openRoutineModal() {
+        this.loadMembers();
+        this.renderMembers();
+        this.routineModal.classList.add('show');
+    }
+    
+    closeRoutineModal() {
+        this.routineModal.classList.remove('show');
+    }
+    
+    openAddMemberModal(memberId = null) {
+        this.currentEditingMemberId = memberId;
+        this.currentRoutines = [];
+        
+        if (memberId) {
+            // Editing existing member
+            const member = this.members.find(m => m.id === memberId);
+            if (member) {
+                document.getElementById('addMemberModalTitle').textContent = 'Edit Member';
+                document.getElementById('memberName').value = member.name;
+                document.getElementById('memberId').value = memberId;
+                this.currentRoutines = member.routines || [];
+            }
+        } else {
+            // Adding new member
+            document.getElementById('addMemberModalTitle').textContent = 'Add New Member';
+            document.getElementById('memberForm').reset();
+            document.getElementById('memberId').value = '';
+            this.currentRoutines = [];
+        }
+        
+        this.renderRoutines();
+        this.addMemberModal.classList.add('show');
+        document.getElementById('memberName').focus();
+    }
+    
+    closeAddMemberModal() {
+        this.addMemberModal.classList.remove('show');
+        this.currentEditingMemberId = null;
+        this.currentRoutines = [];
+        document.getElementById('memberForm').reset();
+    }
+    
+    addRoutine() {
+        const routineName = this.routineInput.value.trim();
+        if (routineName) {
+            this.currentRoutines.push(routineName);
+            this.routineInput.value = '';
+            this.renderRoutines();
+        }
+    }
+    
+    removeRoutine(index) {
+        this.currentRoutines.splice(index, 1);
+        this.renderRoutines();
+    }
+    
+    renderRoutines() {
+        if (this.currentRoutines.length === 0) {
+            this.routinesList.innerHTML = '<div class="empty-state" style="padding: 1rem; text-align: center; color: var(--text-secondary);">No routines added yet</div>';
+            return;
+        }
+        
+        this.routinesList.innerHTML = this.currentRoutines.map((routine, index) => `
+            <div class="routine-item">
+                <span class="routine-item-name">${this.escapeHtml(routine)}</span>
+                <button class="routine-item-remove" onclick="routineManager.removeRoutine(${index})" title="Remove">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `).join('');
+    }
+    
+    saveMember() {
+        const memberName = document.getElementById('memberName').value.trim();
+        if (!memberName) {
+            taskManager?.showToast('Please enter a member name', 'error');
+            return;
+        }
+        
+        const memberId = document.getElementById('memberId').value;
+        
+        if (memberId) {
+            // Update existing member
+            const member = this.members.find(m => m.id === memberId);
+            if (member) {
+                member.name = memberName;
+                member.routines = this.currentRoutines;
+                
+                // Create initial tasks from routines if member has no tasks yet
+                if (!member.tasks || member.tasks.length === 0) {
+                    member.tasks = this.currentRoutines.map((routine, index) => ({
+                        id: Date.now().toString() + index,
+                        title: routine,
+                        description: '',
+                        priority: 'medium',
+                        status: 'todo',
+                        tags: [],
+                        createdAt: new Date().toISOString()
+                    }));
+                }
+                
+                taskManager?.showToast('Member updated successfully', 'success');
+            }
+        } else {
+            // Add new member
+            const memberId = Date.now().toString();
+            const newMember = {
+                id: memberId,
+                name: memberName,
+                routines: this.currentRoutines,
+                colorTheme: this.generateMemberColor(memberId), // Assign color theme immediately
+                tasks: this.currentRoutines.map((routine, index) => ({
+                    id: Date.now().toString() + index,
+                    title: routine,
+                    description: '',
+                    priority: 'medium',
+                    status: 'todo',
+                    tags: [],
+                    createdAt: new Date().toISOString()
+                }))
+            };
+            
+            this.members.push(newMember);
+            taskManager?.showToast('Member added successfully', 'success');
+        }
+        
+        this.saveMembers();
+        this.renderMembers();
+        this.closeAddMemberModal();
+    }
+    
+    selectMember(memberId) {
+        if (taskManager) {
+            taskManager.switchToMember(memberId);
+            this.closeRoutineModal();
+            
+            // Show indicator in navbar
+            const member = this.members.find(m => m.id === memberId);
+            if (member) {
+                this.showCurrentMemberIndicator(member.name);
+            }
+            
+            taskManager.showToast(`Viewing ${member.name}'s routines`, 'info');
+        }
+    }
+    
+    openMemberDashboard(memberId) {
+        // Open member dashboard in new tab
+        const url = window.location.href.split('?')[0] + `?member=${memberId}`;
+        window.open(url, '_blank');
+    }
+    
+    editMember(memberId) {
+        const member = this.members.find(m => m.id === memberId);
+        if (member) {
+            this.openAddMemberModal(memberId);
+        }
+    }
+    
+    deleteMember(memberId) {
+        const member = this.members.find(m => m.id === memberId);
+        if (!member) return;
+        
+        if (confirm(`Are you sure you want to delete ${member.name} and all their routines?`)) {
+            // If this member is currently active, switch back to regular view
+            const currentMemberId = localStorage.getItem('currentMemberId');
+            if (currentMemberId === memberId) {
+                if (taskManager) {
+                    taskManager.switchToRegular();
+                }
+                this.hideCurrentMemberIndicator();
+                this.removeMemberTheme();
+            }
+            
+            this.members = this.members.filter(m => m.id !== memberId);
+            this.saveMembers();
+            this.renderMembers();
+            
+            taskManager?.showToast('Member deleted', 'info');
+        }
+    }
+    
+    showCurrentMemberIndicator(memberName) {
+        // Prevent showing if we're hiding/switching
+        if (this._hidingIndicator) {
+            return;
+        }
+        
+        // Remove existing indicator if present to avoid duplicate listeners
+        const existingIndicator = document.getElementById('currentMemberIndicator');
+        if (existingIndicator) {
+            existingIndicator.remove();
+        }
+        
+        // Create new indicator element
+        const indicator = document.createElement('div');
+        indicator.id = 'currentMemberIndicator';
+        indicator.className = 'current-member-indicator';
+        indicator.style.cursor = 'pointer';
+        indicator.title = 'Click to switch back to regular tasks';
+        indicator.style.display = 'inline-flex';
+        
+        // Set the HTML content
+        indicator.innerHTML = `<i class="fas fa-user"></i> <span class="member-indicator-name">${this.escapeHtml(memberName)}</span> <i class="fas fa-times close-indicator" style="margin-left: 0.5rem; font-size: 0.75rem; cursor: pointer;" title="Close"></i>`;
+        
+        // Add click handler to the entire indicator with debounce
+        let clicking = false;
+        indicator.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (clicking) return; // Prevent multiple clicks
+            clicking = true;
+            
+            console.log('Member indicator clicked - switching to regular');
+            this._hidingIndicator = true; // Set flag to prevent re-showing
+            
+            if (taskManager) {
+                taskManager.switchToRegular();
+                this.hideCurrentMemberIndicator();
+                taskManager.showToast('Switched to regular tasks', 'info');
+            }
+            
+            // Reset flag after delay
+            setTimeout(() => {
+                clicking = false;
+                this._hidingIndicator = false;
+            }, 500);
+        });
+        
+        // Add click handler specifically to the close icon
+        const closeIcon = indicator.querySelector('.close-indicator');
+        if (closeIcon) {
+            let closing = false;
+            closeIcon.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                if (closing) return; // Prevent multiple clicks
+                closing = true;
+                
+                console.log('Close icon clicked - switching to regular');
+                this._hidingIndicator = true;
+                
+                if (taskManager) {
+                    taskManager.switchToRegular();
+                    this.hideCurrentMemberIndicator();
+                    taskManager.showToast('Switched to regular tasks', 'info');
+                }
+                
+                setTimeout(() => {
+                    closing = false;
+                    this._hidingIndicator = false;
+                }, 500);
+            });
+        }
+        
+        // Append to navbar
+        const navTitle = document.querySelector('.nav-title');
+        if (navTitle) {
+            navTitle.appendChild(indicator);
+        }
+    }
+    
+    hideCurrentMemberIndicator() {
+        const indicator = document.getElementById('currentMemberIndicator');
+        if (indicator) {
+            // Completely remove the indicator from DOM
+            indicator.remove();
+            console.log('Member indicator removed from DOM');
+        }
+    }
+    
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+}
+
 // Initialize the app
 let taskManager;
 let pomodoroTimer;
+let routineManager;
 
 document.addEventListener('DOMContentLoaded', () => {
     // Show welcome screen first
@@ -1583,11 +2258,40 @@ document.addEventListener('DOMContentLoaded', () => {
         // Initialize task manager after welcome screen fades out
         taskManager = new TaskManager();
         pomodoroTimer = new PomodoroTimer();
+        routineManager = new RoutineManager();
         
         // Connect Pomodoro button
         document.getElementById('pomodoroBtn').addEventListener('click', () => {
             pomodoroTimer.openModal();
         });
+        
+        // Show current member indicator if viewing a member's routines
+        const urlParams = new URLSearchParams(window.location.search);
+        const memberIdFromUrl = urlParams.get('member');
+        const currentMemberId = memberIdFromUrl || localStorage.getItem('currentMemberId');
+        
+        if (currentMemberId && currentMemberId !== 'null' && currentMemberId !== null) {
+            // If from URL, save to localStorage
+            if (memberIdFromUrl) {
+                localStorage.setItem('currentMemberId', memberIdFromUrl);
+            }
+            
+            routineManager.loadMembers();
+            const member = routineManager.members.find(m => m.id === currentMemberId);
+            if (member) {
+                // Delay to ensure taskManager is initialized
+                setTimeout(() => {
+                    if (taskManager && localStorage.getItem('currentMemberId') === currentMemberId) {
+                        taskManager.switchToMember(currentMemberId);
+                        routineManager.showCurrentMemberIndicator(member.name);
+                        routineManager.applyMemberTheme(currentMemberId);
+                    }
+                }, 100);
+            }
+        } else {
+            // Ensure indicator is hidden if not viewing a member
+            routineManager?.hideCurrentMemberIndicator();
+        }
         
         // Request notification permission
         if ('Notification' in window && Notification.permission === 'default') {
