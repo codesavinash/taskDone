@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Management App</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Welcome Screen -->
+    <div class="welcome-screen" id="welcomeScreen">
+        <div class="welcome-content">
+            <div class="welcome-logo">
+                <span class="welcome-app-name">task<span class="capital-d">D</span>one</span>
+            </div>
+            <h2 class="welcome-message">Welcome to the simplest task manager in the world</h2>
+            <div class="welcome-loader">
+                <div class="loader-dot"></div>
+                <div class="loader-dot"></div>
+                <div class="loader-dot"></div>
+            </div>
+        </div>
+    </div>
+
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-title">
+                <span class="app-name">task<span class="capital-d">D</span>one</span>
+            </h1>
+            <div class="nav-actions">
+                <div class="switch-container">
+                    <input type="checkbox" id="minimalistToggle" class="switch-input">
+                    <label for="minimalistToggle" class="switch-label">
+                        <span class="switch-slider"></span>
+                        <i class="fas fa-compress-arrows-alt switch-icon"></i>
+                    </label>
+                    <span class="tooltip">Minimalist View</span>
+                </div>
+                <button class="btn-icon" id="statsBtn" title="Statistics">
+                    <i class="fas fa-chart-bar"></i>
+                    <span class="tooltip">Statistics</span>
+                </button>
+                <button class="btn-icon" id="clearAllBtn" title="Clear All Tasks">
+                    <i class="fas fa-trash-alt"></i>
+                    <span class="tooltip">Clear All Tasks</span>
+                </button>
+                <button class="btn-icon" id="darkModeBtn" title="Toggle Dark Mode">
+                    <i class="fas fa-moon"></i>
+                    <span class="tooltip">Toggle Dark Mode</span>
+                </button>
+                <button class="btn-icon" id="settingsBtn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                    <span class="tooltip">Settings</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- Statistics Dashboard -->
+        <div class="stats-dashboard" id="statsDashboard">
+            <div class="stats-card">
+                <div class="stats-icon todo">
+                    <i class="fas fa-list-ul"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 id="statsTodo">0</h3>
+                    <p>To Do</p>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon inprogress">
+                    <i class="fas fa-spinner"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 id="statsInProgress">0</h3>
+                    <p>In Progress</p>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon done">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 id="statsDone">0</h3>
+                    <p>Completed</p>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon overdue">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 id="statsOverdue">0</h3>
+                    <p>Overdue</p>
+                </div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-icon total">
+                    <i class="fas fa-tasks"></i>
+                </div>
+                <div class="stats-content">
+                    <h3 id="statsTotal">0</h3>
+                    <p>Total Tasks</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters and Controls -->
+        <div class="controls-section">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Search tasks...">
+                <button class="btn-clear-search" id="clearSearchBtn" title="Clear search">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="filter-controls">
+                <div class="filter-group">
+                    <label for="filterPriority">Filter by Priority:</label>
+                    <select id="filterPriority">
+                        <option value="all">All Priorities</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="sortTasks">Sort by:</label>
+                    <select id="sortTasks">
+                        <option value="date">Date Created</option>
+                        <option value="priority">Priority</option>
+                        <option value="dueDate">Due Date</option>
+                        <option value="title">Title</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary" id="clearFiltersBtn">
+                    <i class="fas fa-filter"></i> Clear Filters
+                </button>
+            </div>
+        </div>
+
+        <div class="board-container">
+            <div class="column" data-status="todo">
+                <div class="column-header">
+                    <h2>
+                        <i class="fas fa-list-ul"></i> To Do
+                        <span class="task-count" id="todoCount">0</span>
+                    </h2>
+                    <button class="btn-add-task" data-status="todo" title="Add Task (Press 'N')">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="task-list" id="todoList" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <!-- Tasks will be added here dynamically -->
+                </div>
+            </div>
+
+            <div class="column" data-status="inprogress">
+                <div class="column-header">
+                    <h2>
+                        <i class="fas fa-spinner"></i> In Progress
+                        <span class="task-count" id="inprogressCount">0</span>
+                    </h2>
+                    <button class="btn-add-task" data-status="inprogress" title="Add Task">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="task-list" id="inprogressList" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <!-- Tasks will be added here dynamically -->
+                </div>
+            </div>
+
+            <div class="column" data-status="done">
+                <div class="column-header">
+                    <h2>
+                        <i class="fas fa-check-circle"></i> Done
+                        <span class="task-count" id="doneCount">0</span>
+                    </h2>
+                    <button class="btn-add-task" data-status="done" title="Add Task">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="task-list" id="doneList" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+                    <!-- Tasks will be added here dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Task Modal -->
+    <div class="modal" id="taskModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Add New Task</h3>
+                <button class="btn-close" id="closeModalBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm">
+                    <div class="form-group">
+                        <label for="taskTitle">Task Title <span class="required">*</span></label>
+                        <input type="text" id="taskTitle" required placeholder="Enter task title...">
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDescription">Description</label>
+                        <textarea id="taskDescription" rows="4" placeholder="Enter task description..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskPriority">Priority</label>
+                        <select id="taskPriority">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskTags">Tags (comma-separated)</label>
+                        <input type="text" id="taskTags" placeholder="e.g., work, urgent, project">
+                        <small class="form-hint">Press Enter after each tag</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDueDate">Due Date</label>
+                        <input type="date" id="taskDueDate">
+                    </div>
+                    <input type="hidden" id="taskId">
+                    <input type="hidden" id="taskStatus">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel (Esc)</button>
+                <button type="button" class="btn btn-primary" id="saveTaskBtn">Save Task (Ctrl+S)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Modal -->
+    <div class="modal" id="statsModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Task Statistics</h3>
+                <button class="btn-close" id="closeStatsBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Total Tasks</div>
+                        <div class="stat-value" id="modalTotalTasks">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Completion Rate</div>
+                        <div class="stat-value" id="modalCompletionRate">0%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">High Priority Tasks</div>
+                        <div class="stat-value" id="modalHighPriority">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Overdue Tasks</div>
+                        <div class="stat-value" id="modalOverdue">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Tasks Due Today</div>
+                        <div class="stat-value" id="modalDueToday">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Tasks This Week</div>
+                        <div class="stat-value" id="modalDueThisWeek">0</div>
+                    </div>
+                </div>
+                <div class="priority-breakdown">
+                    <h4>Priority Breakdown</h4>
+                    <div class="priority-bars">
+                        <div class="priority-bar">
+                            <span class="priority-label">High</span>
+                            <div class="bar-container">
+                                <div class="bar high" id="barHigh" style="width: 0%"></div>
+                            </div>
+                            <span class="priority-count" id="countHigh">0</span>
+                        </div>
+                        <div class="priority-bar">
+                            <span class="priority-label">Medium</span>
+                            <div class="bar-container">
+                                <div class="bar medium" id="barMedium" style="width: 0%"></div>
+                            </div>
+                            <span class="priority-count" id="countMedium">0</span>
+                        </div>
+                        <div class="priority-bar">
+                            <span class="priority-label">Low</span>
+                            <div class="bar-container">
+                                <div class="bar low" id="barLow" style="width: 0%"></div>
+                            </div>
+                            <span class="priority-count" id="countLow">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="btn-close" id="closeSettingsBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="autoSaveToggle" checked>
+                        Auto-save to local storage
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="showStatsToggle" checked>
+                        Show statistics dashboard
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="animationsToggle" checked>
+                        Enable animations
+                    </label>
+                </div>
+                <div class="form-group">
+                    <h4>Keyboard Shortcuts</h4>
+                    <div class="shortcuts-list">
+                        <div class="shortcut-item">
+                            <kbd>N</kbd> - New Task
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>Esc</kbd> - Close Modal
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>Ctrl+S</kbd> - Save Task
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>/</kbd> - Focus Search
+                        </div>
+                        <div class="shortcut-item">
+                            <kbd>Ctrl+D</kbd> - Toggle Dark Mode
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-danger" id="exportBtn">Export Tasks</button>
+                    <button class="btn btn-secondary" id="importBtn">Import Tasks</button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>
