@@ -316,20 +316,7 @@ class TaskManager {
             this.importTasks(e);
         });
 
-        // Search
-        const searchInput = document.getElementById('searchInput');
-        const clearSearchBtn = document.getElementById('clearSearchBtn');
-        
-        searchInput.addEventListener('input', (e) => {
-            this.filterTasks(e.target.value);
-            clearSearchBtn.classList.toggle('show', e.target.value.length > 0);
-        });
-
-        clearSearchBtn.addEventListener('click', () => {
-            searchInput.value = '';
-            this.filterTasks('');
-            clearSearchBtn.classList.remove('show');
-        });
+        // Search removed - no longer needed
 
         // Filters
         document.getElementById('filterPriority').addEventListener('change', (e) => {
@@ -402,10 +389,7 @@ class TaskManager {
                 this.openTaskModal(null, 'todo');
             }
 
-            if (e.key === '/') {
-                e.preventDefault();
-                document.getElementById('searchInput').focus();
-            }
+            // Search shortcut removed
 
             if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
                 e.preventDefault();
@@ -693,10 +677,8 @@ class TaskManager {
     clearFilters() {
         document.getElementById('filterPriority').value = 'all';
         document.getElementById('sortTasks').value = 'date';
-        document.getElementById('searchInput').value = '';
-        document.getElementById('clearSearchBtn').classList.remove('show');
         this.currentFilter = { priority: 'all', sort: 'date' };
-        this.filterTasks('');
+        this.applyFilters();
     }
 
     // Filter tasks by search
