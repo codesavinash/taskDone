@@ -1004,8 +1004,543 @@ function handleDrop(e) {
     taskManager.draggedTask = null;
 }
 
+// Pomodoro Timer Class
+class PomodoroTimer {
+    constructor() {
+        this.presets = {
+            short: { work: 25 * 60, break: 5 * 60 },
+            long: { work: 45 * 60, break: 10 * 60 }
+        };
+        
+        this.currentPreset = null;
+        this.currentMode = 'work'; // 'work' or 'break'
+        this.timeRemaining = 0;
+        this.totalTime = 0;
+        this.intervalId = null;
+        this.isRunning = false;
+        this.isPaused = false;
+        
+        // DOM elements
+        this.modal = document.getElementById('pomodoroModal');
+        this.presetsContainer = document.getElementById('pomodoroPresets');
+        this.timerContainer = document.getElementById('pomodoroTimerContainer');
+        this.timeDisplay = document.getElementById('pomodoroTime');
+        this.modeBadge = document.getElementById('pomodoroModeBadge');
+        this.modeText = document.getElementById('pomodoroModeText');
+        this.progressCircle = document.getElementById('pomodoroProgressCircle');
+        this.startPauseBtn = document.getElementById('pomodoroStartPauseBtn');
+        this.resetBtn = document.getElementById('pomodoroResetBtn');
+        
+        // Minimized timer elements
+        this.minimizedTimer = document.getElementById('pomodoroMinimized');
+        this.minimizedTime = document.getElementById('pomodoroMinimizedTime');
+        this.minimizedMode = document.getElementById('pomodoroMinimizedMode');
+        this.minimizedProgress = document.getElementById('pomodoroMinimizedProgress');
+        this.minimizedControl = document.getElementById('pomodoroMinimizedControl');
+        this.minimizedStop = document.getElementById('pomodoroMinimizedStop');
+        this.minimizedExpand = document.getElementById('pomodoroMinimizedExpand');
+        
+        // Stop button in modal
+        this.stopBtn = document.getElementById('pomodoroStopBtn');
+        
+        // Calculate circumference for progress ring (2 * PI * r, where r = 140)
+        this.circumference = 2 * Math.PI * 140;
+        
+        this.init();
+    }
+    
+    init() {
+        this.loadState();
+        this.setupEventListeners();
+        this.updateDisplay();
+    }
+    
+    setupEventListeners() {
+        // Preset buttons
+        document.querySelectorAll('.pomodoro-preset-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const preset = e.currentTarget.getAttribute('data-preset');
+                this.selectPreset(preset);
+            });
+        });
+        
+        // Start/Pause button
+        this.startPauseBtn.addEventListener('click', () => {
+            if (this.isRunning) {
+                this.pause();
+            } else {
+                this.start();
+            }
+        });
+        
+        // Reset button
+        this.resetBtn.addEventListener('click', () => {
+            this.reset();
+        });
+        
+        // Close modal button
+        document.getElementById('closePomodoroBtn').addEventListener('click', () => {
+            this.closeModal();
+        });
+        
+        // Close modal on outside click
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) {
+                this.closeModal();
+            }
+        });
+        
+        // Minimized timer controls
+        this.minimizedControl.addEventListener('click', () => {
+            if (this.isRunning) {
+                this.pause();
+            } else {
+                this.start();
+            }
+        });
+        
+        this.minimizedStop.addEventListener('click', () => {
+            this.stop();
+        });
+        
+        this.minimizedExpand.addEventListener('click', () => {
+            this.openModal();
+        });
+        
+        // Stop button in modal
+        this.stopBtn.addEventListener('click', () => {
+            this.stop();
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (!this.modal.classList.contains('show') && !this.isRunning) return;
+            
+            if (e.key === ' ' || e.key === 'Space') {
+                e.preventDefault();
+                if (this.isRunning) {
+                    this.pause();
+                } else {
+                    this.start();
+                }
+            } else if (e.key === 'r' || e.key === 'R') {
+                e.preventDefault();
+                this.reset();
+            }
+        });
+    }
+    
+    selectPreset(presetName) {
+        this.currentPreset = presetName;
+        this.currentMode = 'work';
+        this.totalTime = this.presets[presetName].work;
+        this.timeRemaining = this.totalTime;
+        this.isRunning = false;
+        this.isPaused = false;
+        
+        // Update UI
+        document.querySelectorAll('.pomodoro-preset-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-preset="${presetName}"]`).classList.add('active');
+        
+        // Show timer container, hide presets
+        this.timerContainer.style.display = 'flex';
+        this.presetsContainer.style.display = 'none';
+        this.updateMode();
+        this.updateDisplay();
+        this.saveState();
+    }
+    
+    start() {
+        if (!this.currentPreset) {
+            taskManager?.showToast('Please select a preset first', 'warning');
+            return;
+        }
+        
+        if (this.timeRemaining <= 0) {
+            this.switchMode();
+            return;
+        }
+        
+        this.isRunning = true;
+        this.isPaused = false;
+        this.timerContainer.classList.add('running');
+        this.startPauseBtn.innerHTML = '<i class="fas fa-pause"></i><span>Pause</span>';
+        
+        // Show minimized timer and close modal with animation
+        this.showMinimizedTimer();
+        setTimeout(() => {
+            this.closeModal();
+        }, 300);
+        
+        const startTime = Date.now();
+        const initialTimeRemaining = this.timeRemaining;
+        
+        this.intervalId = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            this.timeRemaining = Math.max(0, initialTimeRemaining - elapsed);
+            
+            this.updateDisplay();
+            this.updateMinimizedDisplay();
+            
+            if (this.timeRemaining <= 0) {
+                this.complete();
+            }
+        }, 100); // Update every 100ms for smooth animations
+        
+        this.saveState();
+    }
+    
+    pause() {
+        this.isRunning = false;
+        this.isPaused = true;
+        this.timerContainer.classList.remove('running');
+        this.startPauseBtn.innerHTML = '<i class="fas fa-play"></i><span>Start</span>';
+        this.minimizedControl.innerHTML = '<i class="fas fa-play"></i>';
+        this.minimizedControl.title = 'Start';
+        
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        
+        this.saveState();
+    }
+    
+    reset() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        
+        this.isRunning = false;
+        this.isPaused = false;
+        this.timerContainer.classList.remove('running');
+        this.timerContainer.classList.remove('complete');
+        
+        if (this.currentPreset) {
+            if (this.currentMode === 'work') {
+                this.totalTime = this.presets[this.currentPreset].work;
+            } else {
+                this.totalTime = this.presets[this.currentPreset].break;
+            }
+            this.timeRemaining = this.totalTime;
+        }
+        
+        this.startPauseBtn.innerHTML = '<i class="fas fa-play"></i><span>Start</span>';
+        this.minimizedControl.innerHTML = '<i class="fas fa-pause"></i>';
+        this.updateDisplay();
+        this.updateMinimizedDisplay();
+        this.saveState();
+    }
+    
+    stop() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        
+        this.isRunning = false;
+        this.isPaused = false;
+        this.timerContainer.classList.remove('running');
+        this.timerContainer.classList.remove('complete');
+        
+        // Reset to initial state
+        if (this.currentPreset) {
+            this.currentMode = 'work';
+            this.totalTime = this.presets[this.currentPreset].work;
+            this.timeRemaining = this.totalTime;
+        }
+        
+        // Update UI
+        this.startPauseBtn.innerHTML = '<i class="fas fa-play"></i><span>Start</span>';
+        this.minimizedControl.innerHTML = '<i class="fas fa-pause"></i>';
+        this.minimizedControl.title = 'Pause';
+        this.updateMode();
+        this.updateDisplay();
+        this.updateMinimizedDisplay();
+        
+        // Hide minimized timer and close modal
+        this.hideMinimizedTimer();
+        this.closeModal();
+        
+        // Reset state - show presets again
+        this.resetState();
+        this.currentPreset = null;
+        this.saveState();
+        
+        taskManager?.showToast('Timer stopped', 'info');
+    }
+    
+    switchMode() {
+        if (!this.currentPreset) return;
+        
+        this.timerContainer.classList.add('mode-transitioning');
+        
+        setTimeout(() => {
+            if (this.currentMode === 'work') {
+                this.currentMode = 'break';
+                this.totalTime = this.presets[this.currentPreset].break;
+                taskManager?.showToast('Break time! Take a rest 🎉', 'success');
+            } else {
+                this.currentMode = 'work';
+                this.totalTime = this.presets[this.currentPreset].work;
+                taskManager?.showToast('Back to work! Let\'s focus 💪', 'info');
+            }
+            
+            this.timeRemaining = this.totalTime;
+            this.isRunning = false;
+            this.isPaused = false;
+            
+            this.updateMode();
+            this.updateDisplay();
+            this.timerContainer.classList.remove('mode-transitioning');
+            this.timerContainer.classList.remove('complete');
+            this.timerContainer.classList.remove('running');
+            this.startPauseBtn.innerHTML = '<i class="fas fa-play"></i><span>Start</span>';
+            
+            this.saveState();
+            
+            // Request browser notification if available
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(
+                    this.currentMode === 'break' ? 'Break Time!' : 'Work Time!',
+                    {
+                        body: this.currentMode === 'break' 
+                            ? 'Take a well-deserved break!'
+                            : 'Time to focus and get things done!',
+                        icon: '/favicon.ico'
+                    }
+                );
+            }
+        }, 500);
+    }
+    
+    complete() {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        
+        this.isRunning = false;
+        this.timerContainer.classList.remove('running');
+        this.timerContainer.classList.add('complete');
+        this.minimizedControl.innerHTML = '<i class="fas fa-play"></i>';
+        this.minimizedControl.title = 'Start';
+        
+        const modeText = this.currentMode === 'work' ? 'Work session' : 'Break';
+        taskManager?.showToast(`${modeText} completed! 🎉`, 'success');
+        
+        // Request browser notification if available
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(
+                `${modeText} Completed!`,
+                {
+                    body: this.currentMode === 'work' 
+                        ? 'Great work! Time for a break.'
+                        : 'Break over! Ready to get back to work?',
+                    icon: '/favicon.ico'
+                }
+            );
+        } else if ('Notification' in window && Notification.permission !== 'denied') {
+            Notification.requestPermission();
+        }
+        
+        setTimeout(() => {
+            this.switchMode();
+            if (this.isRunning) {
+                this.showMinimizedTimer();
+            }
+        }, 2000);
+        
+        this.saveState();
+    }
+    
+    updateMode() {
+        this.timerContainer.classList.remove('mode-work', 'mode-break');
+        this.timerContainer.classList.add(`mode-${this.currentMode}`);
+        this.modeBadge.textContent = this.currentMode === 'work' ? 'Work' : 'Break';
+        this.modeText.textContent = this.currentMode === 'work' ? 'Work Time' : 'Break Time';
+        
+        // Update minimized timer mode
+        if (this.minimizedTimer) {
+            this.minimizedTimer.classList.remove('mode-work', 'mode-break');
+            this.minimizedTimer.classList.add(`mode-${this.currentMode}`);
+            this.minimizedMode.textContent = this.currentMode === 'work' ? 'Work' : 'Break';
+        }
+    }
+    
+    updateDisplay() {
+        // Update time display
+        const minutes = Math.floor(this.timeRemaining / 60);
+        const seconds = this.timeRemaining % 60;
+        const timeString = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        this.timeDisplay.textContent = timeString;
+        
+        // Update circular progress
+        if (this.totalTime > 0) {
+            const progress = (this.totalTime - this.timeRemaining) / this.totalTime;
+            const offset = this.circumference - (progress * this.circumference);
+            this.progressCircle.style.strokeDashoffset = offset;
+        }
+    }
+    
+    updateMinimizedDisplay() {
+        if (!this.minimizedTimer || this.minimizedTimer.style.display === 'none') return;
+        
+        // Update time
+        const minutes = Math.floor(this.timeRemaining / 60);
+        const seconds = this.timeRemaining % 60;
+        this.minimizedTime.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        // Update progress bar
+        if (this.totalTime > 0) {
+            const progress = ((this.totalTime - this.timeRemaining) / this.totalTime) * 100;
+            this.minimizedProgress.style.width = `${progress}%`;
+        }
+    }
+    
+    showMinimizedTimer() {
+        if (!this.minimizedTimer) return;
+        
+        this.minimizedTimer.style.display = 'block';
+        this.minimizedTimer.classList.remove('hiding');
+        this.minimizedTimer.classList.remove('mode-work', 'mode-break');
+        this.minimizedTimer.classList.add(`mode-${this.currentMode}`);
+        this.minimizedControl.innerHTML = '<i class="fas fa-pause"></i>';
+        this.minimizedControl.title = 'Pause';
+        this.updateMinimizedDisplay();
+    }
+    
+    hideMinimizedTimer() {
+        if (!this.minimizedTimer) return;
+        
+        this.minimizedTimer.classList.add('hiding');
+        setTimeout(() => {
+            this.minimizedTimer.style.display = 'none';
+            this.minimizedTimer.classList.remove('hiding');
+        }, 400);
+    }
+    
+    openModal() {
+        this.modal.classList.add('show');
+        this.loadState();
+        // Don't hide minimized timer when opening modal - user can see both
+    }
+    
+    closeModal() {
+        this.modal.classList.remove('show');
+    }
+    
+    saveState() {
+        const state = {
+            preset: this.currentPreset,
+            mode: this.currentMode,
+            timeRemaining: this.timeRemaining,
+            totalTime: this.totalTime,
+            isRunning: this.isRunning,
+            isPaused: this.isPaused,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('pomodoroTimer', JSON.stringify(state));
+    }
+    
+    loadState() {
+        const saved = localStorage.getItem('pomodoroTimer');
+        if (saved) {
+            try {
+                const state = JSON.parse(saved);
+                
+                // Only restore if it was saved recently (within last 24 hours)
+                const hoursSinceSave = (Date.now() - state.timestamp) / (1000 * 60 * 60);
+                if (hoursSinceSave > 24) {
+                    this.resetState();
+                    return;
+                }
+                
+                // Restore if timer was running and less than a minute has passed
+                if (state.isRunning && hoursSinceSave < (1 / 60)) {
+                    this.currentPreset = state.preset;
+                    this.currentMode = state.mode;
+                    this.totalTime = state.totalTime;
+                    
+                    // Adjust time remaining based on elapsed time
+                    const elapsed = Math.floor((Date.now() - state.timestamp) / 1000);
+                    this.timeRemaining = Math.max(0, state.timeRemaining - elapsed);
+                    
+                    if (this.timeRemaining <= 0) {
+                        this.switchMode();
+                    } else {
+                        this.updateMode();
+                        this.updateDisplay();
+                        this.timerContainer.style.display = 'flex';
+                        this.presetsContainer.style.display = 'none';
+                        document.querySelector(`[data-preset="${state.preset}"]`)?.classList.add('active');
+                        
+                        // Auto-resume if it was running
+                        if (state.isRunning && this.timeRemaining > 0) {
+                            this.showMinimizedTimer();
+                            // Don't call start() here as it will close modal - just show minimized
+                            // Start will be called when user interacts or auto-starts
+                            this.isRunning = true;
+                            this.isPaused = false;
+                            this.timerContainer.classList.add('running');
+                            this.startPauseBtn.innerHTML = '<i class="fas fa-pause"></i><span>Pause</span>';
+                            this.minimizedControl.innerHTML = '<i class="fas fa-pause"></i>';
+                            this.minimizedControl.title = 'Pause';
+                            const startTime = Date.now();
+                            const initialTimeRemaining = this.timeRemaining;
+                            
+                            this.intervalId = setInterval(() => {
+                                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                                this.timeRemaining = Math.max(0, initialTimeRemaining - elapsed);
+                                
+                                this.updateDisplay();
+                                this.updateMinimizedDisplay();
+                                
+                                if (this.timeRemaining <= 0) {
+                                    this.complete();
+                                }
+                            }, 100);
+                        }
+                    }
+                } else if (state.preset) {
+                    // Restore preset but don't auto-start
+                    this.currentPreset = state.preset;
+                    this.currentMode = state.mode;
+                    this.totalTime = state.mode === 'work' 
+                        ? this.presets[state.preset].work 
+                        : this.presets[state.preset].break;
+                    this.timeRemaining = state.timeRemaining || this.totalTime;
+                    this.updateMode();
+                    this.updateDisplay();
+                    this.timerContainer.style.display = 'flex';
+                    this.presetsContainer.style.display = 'none';
+                    document.querySelector(`[data-preset="${state.preset}"]`)?.classList.add('active');
+                }
+            } catch (e) {
+                console.error('Error loading pomodoro state:', e);
+                this.resetState();
+            }
+        } else {
+            this.resetState();
+        }
+    }
+    
+    resetState() {
+        this.timerContainer.style.display = 'none';
+        this.presetsContainer.style.display = 'grid';
+        document.querySelectorAll('.pomodoro-preset-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+    }
+}
+
 // Initialize the app
 let taskManager;
+let pomodoroTimer;
+
 document.addEventListener('DOMContentLoaded', () => {
     // Show welcome screen first
     const welcomeScreen = document.getElementById('welcomeScreen');
@@ -1015,5 +1550,16 @@ document.addEventListener('DOMContentLoaded', () => {
         welcomeScreen.classList.add('hidden');
         // Initialize task manager after welcome screen fades out
         taskManager = new TaskManager();
+        pomodoroTimer = new PomodoroTimer();
+        
+        // Connect Pomodoro button
+        document.getElementById('pomodoroBtn').addEventListener('click', () => {
+            pomodoroTimer.openModal();
+        });
+        
+        // Request notification permission
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
     }, 3000);
 });

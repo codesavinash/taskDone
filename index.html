@@ -28,6 +28,30 @@
             <h1 class="nav-title">
                 <span class="app-name">task<span class="capital-d">D</span>one</span>
             </h1>
+            <!-- Minimized Pomodoro Timer -->
+            <div class="pomodoro-minimized" id="pomodoroMinimized" style="display: none;">
+                <div class="pomodoro-minimized-content">
+                    <div class="pomodoro-minimized-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="pomodoro-minimized-info">
+                        <div class="pomodoro-minimized-mode" id="pomodoroMinimizedMode">Work</div>
+                        <div class="pomodoro-minimized-time" id="pomodoroMinimizedTime">25:00</div>
+                    </div>
+                    <div class="pomodoro-minimized-progress">
+                        <div class="pomodoro-minimized-progress-bar" id="pomodoroMinimizedProgress"></div>
+                    </div>
+                    <button class="pomodoro-minimized-control" id="pomodoroMinimizedControl" title="Pause">
+                        <i class="fas fa-pause"></i>
+                    </button>
+                    <button class="pomodoro-minimized-stop" id="pomodoroMinimizedStop" title="Stop Timer">
+                        <i class="fas fa-stop"></i>
+                    </button>
+                    <button class="pomodoro-minimized-expand" id="pomodoroMinimizedExpand" title="Open Timer">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+            </div>
             <div class="nav-actions">
                 <div class="switch-container">
                     <input type="checkbox" id="minimalistToggle" class="switch-input">
@@ -37,6 +61,10 @@
                     </label>
                     <span class="tooltip">Minimalist View</span>
                 </div>
+                <button class="btn-icon" id="pomodoroBtn" title="Pomodoro Timer">
+                    <i class="fas fa-clock"></i>
+                    <span class="tooltip">Pomodoro Timer</span>
+                </button>
                 <button class="btn-icon" id="statsBtn" title="Statistics">
                     <i class="fas fa-chart-bar"></i>
                     <span class="tooltip">Statistics</span>
@@ -357,6 +385,64 @@
                     <button class="btn btn-danger" id="exportBtn">Export Tasks</button>
                     <button class="btn btn-secondary" id="importBtn">Import Tasks</button>
                     <input type="file" id="importFile" accept=".json" style="display: none;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pomodoro Timer Modal -->
+    <div class="modal" id="pomodoroModal">
+        <div class="modal-content pomodoro-modal">
+            <div class="modal-header">
+                <h3>Pomodoro Timer</h3>
+                <button class="btn-close" id="closePomodoroBtn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body pomodoro-body">
+                <!-- Preset Selection -->
+                <div class="pomodoro-presets" id="pomodoroPresets">
+                    <button class="pomodoro-preset-btn" data-preset="short">
+                        <i class="fas fa-fire"></i>
+                        <span class="preset-title">25/5</span>
+                        <span class="preset-desc">25 min work • 5 min break</span>
+                    </button>
+                    <button class="pomodoro-preset-btn" data-preset="long">
+                        <i class="fas fa-rocket"></i>
+                        <span class="preset-title">45/10</span>
+                        <span class="preset-desc">45 min work • 10 min break</span>
+                    </button>
+                </div>
+
+                <!-- Timer Display -->
+                <div class="pomodoro-timer-container" id="pomodoroTimerContainer" style="display: none;">
+                    <div class="pomodoro-mode-indicator">
+                        <span class="mode-badge" id="pomodoroModeBadge">Work</span>
+                    </div>
+                    <div class="pomodoro-circle-wrapper">
+                        <svg class="pomodoro-circle" width="300" height="300" viewBox="0 0 300 300">
+                            <circle class="pomodoro-circle-bg" cx="150" cy="150" r="140" />
+                            <circle class="pomodoro-circle-progress" id="pomodoroProgressCircle" cx="150" cy="150" r="140" />
+                        </svg>
+                        <div class="pomodoro-time-display">
+                            <div class="pomodoro-time" id="pomodoroTime">25:00</div>
+                            <div class="pomodoro-mode-text" id="pomodoroModeText">Work Time</div>
+                        </div>
+                    </div>
+                    <div class="pomodoro-controls">
+                        <button class="btn-pomodoro" id="pomodoroStartPauseBtn">
+                            <i class="fas fa-play"></i>
+                            <span>Start</span>
+                        </button>
+                        <button class="btn-pomodoro btn-pomodoro-secondary" id="pomodoroResetBtn">
+                            <i class="fas fa-redo"></i>
+                            <span>Reset</span>
+                        </button>
+                        <button class="btn-pomodoro btn-pomodoro-danger" id="pomodoroStopBtn">
+                            <i class="fas fa-stop"></i>
+                            <span>Stop</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
