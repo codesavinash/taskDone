@@ -1074,9 +1074,13 @@ class PomodoroTimer {
         });
         
         // Reset button
-        this.resetBtn.addEventListener('click', () => {
-            this.reset();
-        });
+        if (this.resetBtn) {
+            this.resetBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.reset();
+            });
+        }
         
         // Close modal button
         document.getElementById('closePomodoroBtn').addEventListener('click', () => {
@@ -1144,12 +1148,13 @@ class PomodoroTimer {
         });
         document.querySelector(`[data-preset="${presetName}"]`).classList.add('active');
         
-        // Show timer container, hide presets
-        this.timerContainer.style.display = 'flex';
-        this.presetsContainer.style.display = 'none';
+        // Update mode and display
         this.updateMode();
         this.updateDisplay();
-        this.saveState();
+        
+        // Start timer immediately and close modal
+        this.start();
+        this.closeModal();
     }
     
     start() {
@@ -1165,14 +1170,15 @@ class PomodoroTimer {
         
         this.isRunning = true;
         this.isPaused = false;
-        this.timerContainer.classList.add('running');
-        this.startPauseBtn.innerHTML = '<i class="fas fa-pause"></i><span>Pause</span>';
+        if (this.timerContainer) {
+            this.timerContainer.classList.add('running');
+        }
+        if (this.startPauseBtn) {
+            this.startPauseBtn.innerHTML = '<i class="fas fa-pause"></i><span>Pause</span>';
+        }
         
-        // Show minimized timer and close modal with animation
+        // Show minimized timer
         this.showMinimizedTimer();
-        setTimeout(() => {
-            this.closeModal();
-        }, 300);
         
         const startTime = Date.now();
         const initialTimeRemaining = this.timeRemaining;
@@ -1209,16 +1215,23 @@ class PomodoroTimer {
     }
     
     reset() {
+        // Clear any running intervals
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
         }
         
+        // Reset timer state
         this.isRunning = false;
         this.isPaused = false;
-        this.timerContainer.classList.remove('running');
-        this.timerContainer.classList.remove('complete');
         
+        // Remove running/complete classes
+        if (this.timerContainer) {
+            this.timerContainer.classList.remove('running');
+            this.timerContainer.classList.remove('complete');
+        }
+        
+        // Reset time if preset is selected
         if (this.currentPreset) {
             if (this.currentMode === 'work') {
                 this.totalTime = this.presets[this.currentPreset].work;
@@ -1226,13 +1239,32 @@ class PomodoroTimer {
                 this.totalTime = this.presets[this.currentPreset].break;
             }
             this.timeRemaining = this.totalTime;
+        } else {
+            // If no preset, reset to default
+            this.timeRemaining = 0;
+            this.totalTime = 0;
         }
         
-        this.startPauseBtn.innerHTML = '<i class="fas fa-play"></i><span>Start</span>';
-        this.minimizedControl.innerHTML = '<i class="fas fa-pause"></i>';
+        // Update UI buttons
+        if (this.startPauseBtn) {
+            this.startPauseBtn.innerHTML = '<i class="fas fa-play"></i><span>Start</span>';
+        }
+        if (this.minimizedControl) {
+            this.minimizedControl.innerHTML = '<i class="fas fa-pause"></i>';
+            this.minimizedControl.title = 'Pause';
+        }
+        
+        // Update displays
         this.updateDisplay();
         this.updateMinimizedDisplay();
+        
+        // Save state
         this.saveState();
+        
+        // Show toast notification
+        if (taskManager) {
+            taskManager.showToast('Timer reset', 'info');
+        }
     }
     
     stop() {
