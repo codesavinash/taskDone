@@ -235,12 +235,101 @@ class TaskManager {
     toggleMinimalistView(enabled) {
         if (enabled) {
             document.body.classList.add('minimalist-view');
+            this.initMobileMinimalistTabs();
             this.showToast('Minimalist view enabled', 'info');
         } else {
             document.body.classList.remove('minimalist-view');
+            this.removeMobileMinimalistTabs();
             this.showToast('Minimalist view disabled', 'info');
         }
         this.saveSettings();
+    }
+
+    // Initialize mobile minimalist tabs
+    initMobileMinimalistTabs() {
+        // Only create tabs on mobile screens
+        if (window.innerWidth > 768) return;
+        
+        const boardContainer = document.querySelector('.board-container');
+        if (!boardContainer) return;
+
+        // Remove existing tabs if any
+        this.removeMobileMinimalistTabs();
+
+        // Create tabs container
+        const tabsContainer = document.createElement('div');
+        tabsContainer.className = 'mobile-minimalist-tabs';
+        tabsContainer.id = 'mobileMinimalistTabs';
+
+        const tabs = [
+            { status: 'todo', icon: 'fa-list-ul', label: 'Todo' },
+            { status: 'inprogress', icon: 'fa-spinner', label: 'In Progress' },
+            { status: 'done', icon: 'fa-check-circle', label: 'Done' }
+        ];
+
+        tabs.forEach((tab, index) => {
+            const tabBtn = document.createElement('button');
+            tabBtn.className = 'mobile-minimalist-tab';
+            tabBtn.dataset.status = tab.status;
+            if (index === 0) tabBtn.classList.add('active');
+
+            const count = this.getTaskCount(tab.status);
+            
+            tabBtn.innerHTML = `
+                <i class="fas ${tab.icon}"></i>
+                <span>${tab.label}</span>
+                ${count > 0 ? `<span class="mobile-minimalist-tab-badge">${count}</span>` : ''}
+            `;
+
+            tabBtn.addEventListener('click', () => this.switchMobileTab(tab.status));
+            tabsContainer.appendChild(tabBtn);
+        });
+
+        // Insert tabs before board container
+        boardContainer.parentElement.insertBefore(tabsContainer, boardContainer);
+
+        // Set initial active column
+        this.switchMobileTab('todo');
+    }
+
+    // Remove mobile minimalist tabs
+    removeMobileMinimalistTabs() {
+        const tabsContainer = document.getElementById('mobileMinimalistTabs');
+        if (tabsContainer) {
+            tabsContainer.remove();
+        }
+        // Remove active class from all columns and ensure they're visible
+        document.querySelectorAll('.column').forEach(col => {
+            col.classList.remove('active');
+            col.style.display = ''; // Reset display to default
+        });
+    }
+
+    // Switch mobile tab
+    switchMobileTab(status) {
+        // Update tab buttons
+        document.querySelectorAll('.mobile-minimalist-tab').forEach(tab => {
+            if (tab.dataset.status === status) {
+                tab.classList.add('active');
+            } else {
+                tab.classList.remove('active');
+            }
+        });
+
+        // Update column visibility
+        document.querySelectorAll('.column').forEach(column => {
+            if (column.dataset.status === status) {
+                column.classList.add('active');
+            } else {
+                column.classList.remove('active');
+            }
+        });
+    }
+
+    // Get task count for a status
+    getTaskCount(status) {
+        const tasks = this.filteredTasks || this.tasks;
+        return tasks.filter(t => t.status === status).length;
     }
 
     // Setup event listeners
@@ -295,6 +384,30 @@ class TaskManager {
         // Minimalist view toggle
         document.getElementById('minimalistToggle').addEventListener('change', (e) => {
             this.toggleMinimalistView(e.target.checked);
+        });
+
+        // Handle window resize for mobile minimalist tabs
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                if (document.body.classList.contains('minimalist-view')) {
+                    // Remove tabs if switching to desktop
+                    if (window.innerWidth > 768) {
+                        this.removeMobileMinimalistTabs();
+                        // Show all columns on desktop
+                        document.querySelectorAll('.column').forEach(col => {
+                            col.classList.remove('active');
+                            col.style.display = '';
+                        });
+                    } else {
+                        // Reinitialize tabs if switching to mobile
+                        if (!document.getElementById('mobileMinimalistTabs')) {
+                            this.initMobileMinimalistTabs();
+                        }
+                    }
+                }
+            }, 250);
         });
 
         document.getElementById('clearAllBtn').addEventListener('click', () => {
@@ -837,6 +950,34 @@ class TaskManager {
         document.getElementById('todoCount').textContent = counts.todo;
         document.getElementById('inprogressCount').textContent = counts.inprogress;
         document.getElementById('doneCount').textContent = counts.done;
+
+        // Update mobile minimalist tab badges if they exist
+        if (document.body.classList.contains('minimalist-view') && window.innerWidth <= 768) {
+            this.updateMobileTabBadges(counts);
+        }
+    }
+
+    // Update mobile tab badges
+    updateMobileTabBadges(counts) {
+        const tabs = document.querySelectorAll('.mobile-minimalist-tab');
+        tabs.forEach(tab => {
+            const status = tab.dataset.status;
+            const count = counts[status] || 0;
+            
+            // Remove existing badge
+            const existingBadge = tab.querySelector('.mobile-minimalist-tab-badge');
+            if (existingBadge) {
+                existingBadge.remove();
+            }
+            
+            // Add badge if count > 0
+            if (count > 0) {
+                const badge = document.createElement('span');
+                badge.className = 'mobile-minimalist-tab-badge';
+                badge.textContent = count;
+                tab.appendChild(badge);
+            }
+        });
     }
 
     // Update statistics

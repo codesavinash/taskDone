@@ -1861,6 +1861,178 @@ body.minimalist-view .toast-container {
     display: none;
 }
 
+/* Mobile Minimalist View - Tab Interface */
+@media (max-width: 768px) {
+    body.minimalist-view:has(#mobileMinimalistTabs) .board-container {
+        grid-template-columns: 1fr;
+        padding: 0;
+        gap: 0;
+        position: relative;
+    }
+
+    /* Tab Navigation */
+    .mobile-minimalist-tabs {
+        display: none; /* Hidden by default, shown only on mobile minimalist view */
+    }
+
+    body.minimalist-view .mobile-minimalist-tabs {
+        display: flex;
+        background: var(--card-bg);
+        border-bottom: 2px solid var(--border-color);
+        position: sticky;
+        top: 60px;
+        z-index: 10;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .mobile-minimalist-tab {
+        flex: 1;
+        padding: 1rem;
+        text-align: center;
+        cursor: pointer;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        font-weight: 500;
+        position: relative;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .mobile-minimalist-tab i {
+        font-size: 1.25rem;
+        transition: transform 0.3s ease;
+    }
+
+    .mobile-minimalist-tab:hover {
+        color: var(--primary-color);
+        background: var(--bg-color);
+    }
+
+    .mobile-minimalist-tab.active {
+        color: var(--primary-color);
+        font-weight: 600;
+    }
+
+    .mobile-minimalist-tab.active i {
+        transform: scale(1.2);
+    }
+
+    .mobile-minimalist-tab.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        border-radius: 3px 3px 0 0;
+        animation: tabSlideIn 0.3s ease;
+    }
+
+    @keyframes tabSlideIn {
+        from {
+            transform: scaleX(0);
+        }
+        to {
+            transform: scaleX(1);
+        }
+    }
+
+    .mobile-minimalist-tab-badge {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        width: 1.25rem;
+        height: 1.25rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.625rem;
+        font-weight: 600;
+    }
+
+    /* Column visibility in mobile minimalist view - only when tabs exist */
+    body.minimalist-view:has(#mobileMinimalistTabs) .column {
+        display: none;
+        width: 100%;
+        border: none;
+        border-radius: 0;
+        padding: 1rem;
+        animation: columnFadeIn 0.3s ease;
+        min-height: calc(100vh - 120px);
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .column.active {
+        display: flex;
+        flex-direction: column;
+    }
+
+    @keyframes columnFadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .column-header {
+        padding: 0.75rem 0;
+        margin-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color);
+        position: sticky;
+        top: 120px;
+        background: var(--card-bg);
+        z-index: 5;
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .column-header h2 {
+        font-size: 1.125rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .column-header .btn-add-task {
+        background: var(--primary-color);
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        transition: all 0.3s ease;
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .column-header .btn-add-task:hover {
+        transform: scale(1.1) rotate(90deg);
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.6);
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .task-list {
+        flex: 1;
+        padding: 0.5rem 0;
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .task-card {
+        margin-bottom: 0.75rem;
+        border-radius: 0.75rem;
+        transition: all 0.3s ease;
+    }
+
+    body.minimalist-view:has(#mobileMinimalistTabs) .task-card:active {
+        transform: scale(0.98);
+    }
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .welcome-app-name {
